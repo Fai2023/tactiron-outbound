@@ -484,7 +484,7 @@ Transport Manager</textarea>
           <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
             <div>
               <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wide">Apollo Discovery Results</h3>
-              <p class="text-[11px] text-slate-500">Extracted contact coordinates, direct phone numbers, and automated compliance &amp; qualification classification.</p>
+              <p class="text-[11px] text-slate-500">Extracted contact coordinates, direct phone numbers, and automated compliance &amp; qualification classification. Discovered leads remain in local storage for campaign queuing and CSV export without being sent to Odoo CRM.</p>
             </div>
             <div id="apolloResultStats" class="text-xs text-slate-700 flex items-center gap-2"></div>
           </div>
@@ -558,7 +558,14 @@ Transport Manager</textarea>
           </div>
 
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <button onclick="loadSampleCsv()" class="text-xs text-slate-800 hover:text-slate-900 underline font-medium text-left">Load Sample Apollo CSV Template</button>
+            <div class="flex items-center gap-3">
+              <button onclick="loadSampleCsv()" class="text-xs text-slate-800 hover:text-slate-900 underline font-medium text-left">Load Sample Apollo CSV Template</button>
+              <span class="text-slate-300">|</span>
+              <a href="/leads/export?format=csv" download class="text-xs text-slate-800 hover:text-slate-900 underline font-medium flex items-center gap-1">
+                <i class="fa-solid fa-file-arrow-down text-[10px]"></i>
+                <span>Download All Ingested Leads (CSV)</span>
+              </a>
+            </div>
             <button onclick="submitCsvImport()" id="btnSubmitCsv" class="btn-press px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg transition shadow-sm flex items-center justify-center gap-2">
               <i class="fa-solid fa-cloud-arrow-up text-xs"></i>
               <span>Import &amp; Process CSV</span>
@@ -1541,9 +1548,15 @@ Stefan,Bauer,Dispatch Director,Munich Fleet Gmbh,stefan@munichfleet.de,verified,
             <i class="fa-solid fa-circle-check text-slate-700"></i> CSV Processed Successfully
           </h4>
           <p class="text-slate-700">Total Rows: <b>\${data.result.totalRows}</b> &bull; Contacts Ingested: <b>\${data.result.importedContacts}</b> &bull; Companies: <b>\${data.result.importedCompanies}</b></p>
-          <div class="mt-2 flex items-center gap-2">
-            <span class="text-slate-900 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-semibold">\${data.result.eligibleCount} Eligible for Outreach</span>
-            <span class="text-slate-900 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-semibold">\${data.result.blockedCount} Blocked by Compliance</span>
+          <div class="mt-2 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-slate-900 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-semibold">\${data.result.eligibleCount} Eligible for Outreach</span>
+              <span class="text-slate-900 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-semibold">\${data.result.blockedCount} Blocked by Compliance</span>
+            </div>
+            <a href="/leads/export?format=csv" download class="btn-press px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 font-semibold text-xs rounded transition flex items-center gap-1.5">
+              <i class="fa-solid fa-file-arrow-down text-[10px]"></i>
+              <span>Export CSV</span>
+            </a>
           </div>
         \`;
         showToast(\`Imported \${data.result.importedContacts} contacts successfully.\`, 'success', 'Import Complete');

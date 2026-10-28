@@ -23,7 +23,7 @@ The system automates the outbound pipeline across six distinct stages with deter
 └──────────────────┘    └──────────────────┘    └──────────────────┘
 ```
 
-1. **Find Target Companies and Contacts**: Real-time Apollo.io API discovery with select-or-type criteria (markets, industries, roles) and batch Apollo CSV imports.
+1. **Find Target Companies and Contacts**: Real-time Apollo.io API discovery with select-or-type criteria (markets, industries, roles) and batch Apollo CSV imports. Discovered leads are held locally in the outbound pipeline and are exportable to CSV/JSON without being sent to Odoo CRM until a warm sales engagement occurs.
 2. **Enrich and Verify**: Domain deduplication, team size verification, and email deliverability checks (`deliverable`, `risky`, `undeliverable`).
 3. **Compliance Router (Control Point)**: Deterministic policy enforcement by jurisdiction (GCC email/LinkedIn, Germany UWG §7 email block, UK legitimate interest, strict WhatsApp opt-in), suppression lists, and emergency kill switch.
 4. **Scheduled Worker & Dispatch Queue**: Automated background `node-cron` queue runner evaluating approved time windows, daily sending caps, sequence cadence delays, and exponential retry backoffs.
@@ -36,8 +36,8 @@ The system automates the outbound pipeline across six distinct stages with deter
 ## 2. Core Business Rules (`AI - to human Handover_Rules.xlsx`)
 
 ### A. Qualification Formula
-* **Warm Qualified**: $\text{SegmentFit} = \text{Yes} \land \text{CountryPermitted} = \text{Yes} \land \text{TeamSize} \ge 20 \land \text{RoleTarget} = \text{Yes} \land \text{IntentSignal} = \text{Yes}$.
-* **Nurture**: Positive intent signal, but fails fleet team size ($<20$), segment, or target role.
+* **Warm Qualified**: SegmentFit = Yes AND CountryPermitted = Yes AND TeamSize >= 20 AND RoleTarget = Yes AND IntentSignal = Yes.
+* **Nurture**: Positive intent signal, but fails fleet team size (<20), segment, or target role.
 * **Suppressed / Blocked**: If country is prohibited (e.g. cold email to Germany) or contact is on suppression list, the lead is blocked and **never** routed into nurture.
 
 ### B. The 9 Reply Types & SLA Response Targets
@@ -66,6 +66,11 @@ Matches immediately trigger human escalation and bypass AI response discretion.
 5. **Suggested Next Step**: Contextual action recommendation for the sales representative.
 6. **Risk Flags**: Guardrail hits, pricing notices, jurisdictional caveats (e.g. Germany UWG §7).
 
+### E. High-Efficiency Odoo CRM Integration & Lead Export
+To prevent cluttering Odoo CRM with thousands of cold, unverified, or compliance-restricted leads, Apollo-discovered prospects are **not automatically sent to Odoo CRM**:
+* **Cold Discovered Leads**: Retained locally in the outbound sales engine. Operators can filter, queue compliant leads into outreach sequences, or export records directly to CSV via the Web Console or the `GET /leads/export` endpoint.
+* **Warm Handovers (`[AI Handover]`)**: Odoo CRM (`crm.lead`) exclusively receives high-intent, qualified opportunities when a prospect engages (via positive reply, meeting request, or WhatsApp inbound chat). Every handover carries the complete 6-item Handover Pack and SLA deadline.
+
 ---
 
 ## 3. Operational REST API
@@ -79,8 +84,9 @@ Matches immediately trigger human escalation and bypass AI response discretion.
 
 ### Lead Ingestion & Apollo Discovery
 * `POST /leads/import` — Ingest and deduplicate raw lead batches.
-* `POST /leads/discover/apollo` — Search Apollo by market, industry, role, and team size. Returns company, position, contact name, email, contact phone, company phone, country, industry, compliance, and qualification.
+* `POST /leads/discover/apollo` — Search Apollo by market, industry, role, and team size. Returns company, position, contact name, email, contact phone, company phone, country, industry, compliance, and qualification. Discovered leads are retained locally and exportable without flooding Odoo.
 * `POST /leads/import/apollo-csv` — Parse and pipeline raw Apollo CSV exports.
+* `GET /leads/export` — Export all ingested leads from the engine as downloadable CSV or structured JSON (`?format=json`).
 * `POST /campaigns/queue-leads` — Validate compliance and queue approved leads into the automated dispatch queue.
 
 ### Scheduled Worker & Automation Queue
@@ -102,9 +108,12 @@ Matches immediately trigger human escalation and bypass AI response discretion.
 
 ## 4. Web Console UI (`/console`)
 
-A clean, enterprise white interface accessible at `http://localhost:3000/console`:
+A clean, enterprise-grade **Modern Light** interface accessible at `http://localhost:3000/console`, built with an aesthetic inspired by Linear and Stripe:
+
+* **Design System**: Plus Jakarta Sans for UI typography, JetBrains Mono for all code and data values. Neutral slate/white card system throughout — no coloured card backgrounds. Primary text is unified `text-slate-900`. Floating toast notifications replace all browser `alert()` calls for a non-blocking, polished operator experience. The WhatsApp policy banner renders in neutral white consistent with the rest of the shell.
+* **Grouped Sidebar Navigation**: Four collapsible navigation sections with micro-interactions for a fast, focused workflow.
 * **Overview & KPIs**: Real-time throughput, missed escalations counter (target: 0), SLA summary.
-* **Apollo Lead Discovery**: Flexible select-or-type search for Target Market, Industry, and Job Roles. Actions: **"Select All & Push to Campaign"** and **"Export to CSV"**.
+* **Apollo Lead Discovery**: Flexible select-or-type search for Target Market, Industry, and Job Roles. Actions: **"Select All & Push to Campaign"** and **"Export to CSV"**. Displays live `odooSyncedCount` / `odooFailedCount` metrics for cold-prospect sync status.
 * **Apollo CSV Import**: Direct paste area for Apollo export CSVs.
 * **Reply & Guardrail Lab**: Interactive simulator testing incoming replies against the 7 keywords and 9 reply types.
 * **Automation Settings**: Scheduled queue worker monitor (`node-cron`), window open/closed status, daily sent caps, and on-demand batch trigger.
@@ -138,3 +147,36 @@ npm start
 ### Accessing the Web Console
 Open [http://localhost:3000/console](http://localhost:3000/console) in your browser.
 *(Note: Use `localhost` or `127.0.0.1` rather than `0.0.0.0` in desktop browsers).*
+
+---
+
+## 6. Changelog
+
+### 2026-10-26
+
+#### `42d7f6b` — UI Overhaul: Enterprise Modern Light Console (`src/ui/console.ts`)
+The Operations Console was completely redesigned with an **Enterprise Modern Light** aesthetic (Linear / Stripe style):
+- **Typography**: Plus Jakarta Sans for all UI text; JetBrains Mono for code and data values.
+- **Card system**: Neutral slate/white cards throughout — coloured card backgrounds removed entirely.
+- **Notifications**: Floating toast notifications replace all `browser alert()` calls for a non-blocking operator experience.
+- **Navigation**: Grouped sidebar with 4 collapsible sections and micro-interactions.
+- **Text**: Unified `text-slate-900` primary text colour applied consistently across the shell.
+- **WhatsApp banner**: Policy banner updated to neutral white, consistent with the overall design system.
+
+#### `5a2456b` — Apollo → Odoo Cold Prospect Sync (`src/services/ApolloDiscoveryService.ts`)
+Introduced automatic syncing of every Apollo-discovered lead to Odoo CRM as a cold prospect:
+- `ApolloDiscoveryService` now accepts an optional `IOdooAdapter` dependency.
+- Every lead returned by Apollo (compliant **or** blocked) is immediately pushed to Odoo CRM as an `[Apollo Prospect]` lead with priority `0`.
+- The Odoo description includes contact details, company information, compliance routing status, and qualification score.
+- This is intentionally separate from the existing `[AI Handover]` leads (created on warm replies, priority 1–3).
+- `ApolloDiscoveryReport` now exposes `odooSyncedCount` and `odooFailedCount` metrics for sync health monitoring.
+- Enables sales teams to compare total Apollo pipeline volume against warm engagement directly inside Odoo CRM.
+
+### 2026-10-28
+
+#### Decouple Apollo Discovery from Odoo CRM & Direct CSV Export
+To eliminate CRM clutter and increase pipeline efficiency when processing thousands of Apollo leads:
+- Removed automatic syncing of cold Apollo leads to Odoo CRM (`ApolloDiscoveryService`).
+- Odoo CRM now exclusively receives high-intent **Warm Handovers** (`[AI Handover]`).
+- Apollo leads remain in the outbound sales engine and are directly exportable via the Web Console ("Export to CSV") and the new `GET /leads/export` endpoint (supporting CSV and JSON).
+- Added export methods to `LeadIngestionService` (`getAllContacts`, `getExportableRecords`, `exportToCsv`).

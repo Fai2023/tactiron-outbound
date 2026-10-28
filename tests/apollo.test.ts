@@ -44,6 +44,28 @@ describe('Apollo Lead Generation & Discovery', () => {
     expect(germanLead.compliance.reasonCode).toBe('CHANNEL_EMAIL_NOT_PERMITTED_IN_DE');
     expect(report.blockedByComplianceCount).toBe(1);
   });
+
+  it('does NOT push cold Apollo leads to Odoo CRM, and formats leads as exportable CSV', async () => {
+    const adapter = new MockApolloAdapter();
+    const service = new ApolloDiscoveryService(adapter);
+
+    const report = await service.discoverLeads({
+      countries: ['United Arab Emirates']
+    });
+
+    // Verify leads are in the local report
+    expect(report.leads.length).toBeGreaterThan(0);
+    // Discovered leads must NOT have an odooLeadId set
+    for (const lead of report.leads) {
+      expect(lead.odooLeadId).toBeUndefined();
+    }
+
+    // Verify CSV export functionality
+    const csv = service.exportToCsv(report.leads);
+    expect(csv).toContain('Company,Job Title,Contact Name,Contact Email');
+    expect(csv).toContain('Emirates Dispatch LLC');
+    expect(csv).toContain('rashid@emiratesdispatch.ae');
+  });
 });
 
 describe('Apollo CSV Batch Importer', () => {
@@ -134,5 +156,36 @@ Fatima,Zahra,Dispatch Manager,Abu Dhabi Freight,fatima@adfreight.ae,verified,35,
     expect(body.success).toBe(true);
     expect(body.result.importedContacts).toBe(1);
     expect(body.result.eligibleCount).toBe(1);
+  });
+
+  it('ensures Apollo leads do not end up in Odoo CRM, but are exportable via GET /leads/export', async () => {
+    // Check that Odoo has not received any cold leads from Apollo discovery or CSV imports
+    const odooLeads = orchestrator.odooAdapter.getAllLeads();
+    expect(odooLeads.length).toBe(0);
+
+    // Test GET /leads/export (CSV)
+    const csvRes = await app.inject({
+      method: 'GET',
+      url: '/leads/export'
+    });
+
+    expect(csvRes.statusCode).toBe(200);
+    expect(csvRes.headers['content-type']).toContain('text/csv');
+    expect(csvRes.headers['content-disposition']).toContain('attachment; filename="leads_export_');
+    expect(csvRes.body).toContain('Company Name,Domain,Website,Country,Industry,Team Size');
+    expect(csvRes.body).toContain('Abu Dhabi Freight');
+
+    // Test GET /leads/export?format=json
+    const jsonRes = await app.inject({
+      method: 'GET',
+      url: '/leads/export?format=json'
+    });
+
+    expect(jsonRes.statusCode).toBe(200);
+    const jsonBody = jsonRes.json();
+    expect(jsonBody.total).toBeGreaterThan(0);
+    expect(jsonBody.leads).toBeDefined();
+    expect(jsonBody.leads[0].company).toBeDefined();
+    expect(jsonBody.leads[0].contact).toBeDefined();
   });
 });

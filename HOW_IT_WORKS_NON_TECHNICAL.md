@@ -67,6 +67,9 @@ Before we can reach out to anyone, we need to know who has a real need for our P
 * **How it happens:**
   The operator goes to the console, selects the country and industry, and clicks **"Discover from Apollo"**. Within seconds, a list of verified contacts with their names, verified emails, direct phone numbers, and company dispatch lines appears on the screen.
 
+* **Exportable leads without CRM clutter:**
+  Apollo can return thousands of contacts across different regions and compliance tiers. Rather than dumping thousands of cold prospects into Odoo CRM and creating clutter, the system retains these leads in local storage where they are readily exportable to CSV spreadsheets. Leads only enter Odoo CRM when a genuine sales handover occurs.
+
 ---
 
 ## Step 2: The Legal & Quality Gate (The Security Guard)
@@ -155,6 +158,12 @@ The sales rep receives a notification, and a brand-new lead appears in **Odoo CR
 
 From this moment on, the human sales rep owns the relationship.
 
+> **Why keep cold Apollo leads out of Odoo CRM?**
+>
+> Sourcing from Apollo often produces thousands of raw contacts. Dumping thousands of cold, unverified prospects into Odoo creates massive clutter and makes it harder for sales reps to see actual active opportunities.
+>
+> Instead, the system keeps cold leads in the outbound engine where they can be exported to CSV or enrolled in compliant campaigns. Odoo CRM is kept 100% clean and high-signal, containing exclusively **Warm Handovers (`[AI Handover]`)** that require direct sales action.
+
 ---
 
 ## Step 7: The Emergency Brakes (The Big Red Button)
@@ -171,6 +180,7 @@ At all times, sales leadership and management remain in 100% control:
 | Feature | What It Does for the Business |
 |---|---|
 | **Automated Sourcing** | Finds real fleet operators without sales reps wasting hours on manual internet research. |
+| **High-Signal Odoo CRM** | Prevents thousands of cold unverified leads from clogging the CRM; Odoo only receives warm, qualified leads requiring sales action, while cold leads remain easily exportable to CSV. |
 | **Built-in Compliance** | Protects our brand from privacy violations and spam blacklists automatically. |
 | **Paced Sending** | Ensures emails land in the primary inbox, not the junk folder. |
 | **Instant Response** | Prospects get an immediate, polite acknowledgment so hot leads never go cold. |

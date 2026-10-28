@@ -140,4 +140,72 @@ export class LeadIngestionService {
   public getContact(email: string): Contact | undefined {
     return this.contactsByEmail.get(this.normalizeEmail(email));
   }
+
+  public getAllContacts(): Contact[] {
+    return Array.from(this.contactsByEmail.values());
+  }
+
+  public getAllCompanies(): Company[] {
+    return Array.from(this.companiesByDomain.values());
+  }
+
+  public getExportableRecords(): Array<{ company: Company; contact: Contact }> {
+    const records: Array<{ company: Company; contact: Contact }> = [];
+    const companiesById = new Map<string, Company>();
+    for (const comp of this.companiesByDomain.values()) {
+      companiesById.set(comp.id, comp);
+    }
+    for (const contact of this.contactsByEmail.values()) {
+      const company = companiesById.get(contact.companyId);
+      if (company) {
+        records.push({ company, contact });
+      }
+    }
+    return records;
+  }
+
+  public exportToCsv(): string {
+    const records = this.getExportableRecords();
+    const headers = [
+      'Company Name',
+      'Domain',
+      'Website',
+      'Country',
+      'Industry',
+      'Team Size',
+      'Contact Name',
+      'Job Title',
+      'Contact Email',
+      'Phone',
+      'Company Phone',
+      'Verification Status',
+      'Status',
+      'Source'
+    ];
+
+    const escapeCsv = (val: string | number | boolean | undefined | null): string => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const rows = records.map(r => [
+      escapeCsv(r.company.name),
+      escapeCsv(r.company.domain),
+      escapeCsv(r.company.website),
+      escapeCsv(r.company.country),
+      escapeCsv(r.company.industry),
+      escapeCsv(r.company.teamSize),
+      escapeCsv([r.contact.firstName, r.contact.lastName].filter(Boolean).join(' ') || r.contact.email),
+      escapeCsv(r.contact.jobTitle),
+      escapeCsv(r.contact.email),
+      escapeCsv(r.contact.phone),
+      escapeCsv(r.company.companyPhone),
+      escapeCsv(r.contact.verificationStatus),
+      escapeCsv(r.contact.status),
+      escapeCsv(r.company.provenance.source)
+    ].join(','));
+
+    return [headers.join(','), ...rows].join('\n');
+  }
 }

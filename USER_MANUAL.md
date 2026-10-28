@@ -45,6 +45,13 @@ The Operations Console is accessible via any web browser:
 > [!NOTE]
 > Do not navigate to `http://0.0.0.0:3000` in desktop browsers (Chrome, Edge, Safari); modern browsers do not route `0.0.0.0` as a destination address. Always use `localhost` or `127.0.0.1`.
 
+### Console UI Design
+The console uses an **Enterprise Modern Light** aesthetic — a clean, professional white and slate interface with no colored card backgrounds. Key design elements:
+* **Typography**: Plus Jakarta Sans for UI text, JetBrains Mono for code and data values.
+* **Cards**: Neutral white/slate — all status indicators use monochrome slate dots.
+* **Notifications**: All system alerts appear as **floating toast notifications** in the bottom-right corner — there are no browser popup dialogs.
+* **Sidebar Navigation**: Four grouped sections — *Pipeline*, *Operations*, *Integrations*, and *Settings*.
+
 ### Header Elements
 * **Console Brand**: `Tactiron Outbound Ops Console`
 * **System Status Indicator**:
@@ -96,6 +103,9 @@ The **Overview & KPIs** tab (`nav-dashboard`) provides high-level metrics on pip
 ## 4. Apollo ICP Lead Discovery
 
 The **Apollo Lead Discovery** tab (`nav-apollo`) queries Apollo.io for high-probability Push-to-Talk (PTT) accounts based on your Ideal Customer Profile (ICP).
+
+> [!IMPORTANT]
+> Discovered leads are **retained locally in the outbound sales engine** and are **not sent to Odoo CRM**. Because Apollo can return thousands of cold prospects regardless of compliance status, sending all cold leads to Odoo creates CRM bloat and inefficiency. Instead, leads are readily exportable via CSV or API, and are only pushed to Odoo CRM as warm handovers (`[AI Handover]`) when a prospect engages with positive interest.
 
 ### Selecting or Typing Search Criteria
 The discovery form allows you to either check preset criteria or type custom values:
@@ -236,6 +246,19 @@ Click **Save Automation Settings** to apply changes to the live worker in real t
 ## 8. Odoo CRM Handover Inspection
 
 The **Odoo CRM Handovers** tab (`nav-handovers`) displays all warm prospects and commercial inquiries that have been synchronized to Odoo CRM (`crm.lead`).
+
+### High-Signal Odoo Pipeline Architecture
+
+To maximize CRM efficiency and prevent bloat from thousands of unverified or non-compliant Apollo contacts, **cold leads are not sent to Odoo CRM**. They remain stored locally in the outbound sales engine where they can be exported to CSV or queued into outreach campaigns.
+
+Odoo CRM exclusively receives **Warm Handovers** (`[AI Handover]`) with priority set between `1` (Normal) and `3` (Urgent):
+
+| Lead Type | System Location | Name Prefix | Priority | When Created |
+|---|---|---|---|---|
+| **Cold Sourced Lead** | Outbound Sales Engine (Exportable CSV) | — | — | On Apollo discovery or CSV import |
+| **Warm Handover** | Odoo CRM (`crm.lead`) | `[AI Handover]` | `1`–`3` (High/Urgent) | When prospect replies warmly or books demo |
+
+This keeps your sales team focused strictly on actionable, high-intent opportunities in Odoo CRM while maintaining complete exportability for cold leads.
 
 ### The 6-Item Handover Pack
 Every handover synced to Odoo contains the complete 6-item pack inside the lead description:

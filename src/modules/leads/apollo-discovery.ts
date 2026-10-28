@@ -1,14 +1,14 @@
-﻿/**
+/**
  * Apollo Lead Discovery & Generation Service
- * Queries Apollo.io by target ICP, normalizes records, pipelines them into ingestion & compliance,
- * and syncs ALL discovered leads to Odoo CRM as cold prospects for pipeline comparison tracking.
+ * Queries Apollo.io by target ICP, normalizes records, pipelines them into ingestion & compliance.
+ * Discovered leads remain in the local outbound sales engine and are exportable (e.g. to CSV/JSON)
+ * without sending cold prospects to Odoo CRM. Only warm qualified handovers are synced to Odoo.
  */
 
 import { IApolloAdapter, ApolloSearchParams, ApolloRawPerson } from '../../integrations/apollo/adapter.js';
 import { LeadIngestionService, RawLeadImport, IngestionResult } from './ingestion.js';
 import { ComplianceRouter } from '../compliance/router.js';
 import { QualificationEngine } from '../qualification/engine.js';
-import { IOdooAdapter, OdooLeadPayload } from '../../integrations/odoo/adapter.js';
 import { Channel, ComplianceDecision, QualificationResult } from '../../core/types/index.js';
 
 export interface PttDiscoveryCriteria {
@@ -36,10 +36,10 @@ export interface ApolloDiscoveryReport {
   newContactsCount: number;
   eligibleForOutreachCount: number;
   blockedByComplianceCount: number;
-  /** How many leads were successfully synced to Odoo CRM as cold prospects */
-  odooSyncedCount: number;
-  /** How many leads failed to sync to Odoo (network/auth error) */
-  odooFailedCount: number;
+  /** How many leads were synced to Odoo CRM (deprecated; cold leads are no longer sent to Odoo) */
+  odooSyncedCount?: number;
+  /** How many leads failed to sync to Odoo */
+  odooFailedCount?: number;
   leads: DiscoveredLeadResult[];
 }
 
@@ -77,24 +77,24 @@ export class ApolloDiscoveryService {
   private ingestionService: LeadIngestionService;
   private complianceRouter: ComplianceRouter;
   private qualificationEngine: QualificationEngine;
-  private odooAdapter: IOdooAdapter | null;
 
   constructor(
     apolloAdapter: IApolloAdapter,
     ingestionService: LeadIngestionService = new LeadIngestionService(),
     complianceRouter: ComplianceRouter = new ComplianceRouter(),
     qualificationEngine: QualificationEngine = new QualificationEngine(20),
-    odooAdapter: IOdooAdapter | null = null
+    _odooAdapter: unknown = null // Maintained for optional constructor signature backward compatibility
   ) {
     this.apolloAdapter = apolloAdapter;
     this.ingestionService = ingestionService;
     this.complianceRouter = complianceRouter;
     this.qualificationEngine = qualificationEngine;
-    this.odooAdapter = odooAdapter;
   }
 
   /**
-   * Discovers prospective PTT leads from Apollo based on fleet/dispatch ICP
+   * Discovers prospective PTT leads from Apollo based on fleet/dispatch ICP.
+   * Leads are ingested, compliance-checked, and qualified, and made available
+   * for local campaign queuing and CSV export without flooding Odoo CRM.
    */
   public async discoverLeads(criteria: PttDiscoveryCriteria): Promise<ApolloDiscoveryReport> {
     const titles = criteria.titles || [
@@ -150,7 +150,7 @@ export class ApolloDiscoveryService {
         emailDeliverability: person.email_status === 'verified' ? 'deliverable' : 'unknown'
       };
 
-      // 1. Ingest and deduplicate
+      // 1. Ingest and deduplicate in local store
       const ingestion = this.ingestionService.ingest(leadImport);
 
       // 2. Evaluate compliance for initial outreach (EMAIL)
@@ -178,36 +178,18 @@ export class ApolloDiscoveryService {
         intentSignal: false // Cold prospect: no reply received yet
       });
 
-      // 4. Sync to Odoo CRM as a cold prospect (all leads, regardless of compliance status)
-      if (this.odooAdapter) {
-        const odooPayload: OdooLeadPayload = {
-          name: `[Apollo Prospect] ${ingestion.company.name} - ${leadImport.firstName || leadImport.contactEmail}`,
-          contact_name: `${leadImport.firstName || ''} ${leadImport.lastName || ''}`.trim() || leadImport.contactEmail,
-          email_from: leadImport.contactEmail,
-          phone: leadImport.phone,
-          partner_name: ingestion.company.name,
-          description: this.formatApolloDescription(ingestion, compliance, qualification),
-          priority: '0' // Cold prospect � lowest priority; escalates on warm reply handover
-        };
-
-        try {
-          const odooResult = await this.odooAdapter.createOrUpdateLead(odooPayload);
-          results.push({ ingestion, compliance, qualification, odooLeadId: odooResult.odooLeadId });
-        } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          results.push({ ingestion, compliance, qualification, odooSyncError: errorMsg });
-        }
-      } else {
-        results.push({ ingestion, compliance, qualification });
-      }
+      // Discovered leads stay in local pipeline (do not send to Odoo CRM until warm handover)
+      results.push({
+        ingestion,
+        compliance,
+        qualification
+      });
     }
 
     const newCompaniesCount = new Set(results.filter(r => r.ingestion.isNewCompany).map(r => r.ingestion.company.domain)).size;
     const newContactsCount = results.filter(r => r.ingestion.isNewContact).length;
     const eligibleForOutreachCount = results.filter(r => r.compliance.allowed).length;
     const blockedByComplianceCount = results.filter(r => !r.compliance.allowed).length;
-    const odooSyncedCount = results.filter(r => r.odooLeadId !== undefined).length;
-    const odooFailedCount = results.filter(r => r.odooSyncError !== undefined).length;
 
     return {
       totalDiscovered: apolloResponse.people.length,
@@ -215,53 +197,50 @@ export class ApolloDiscoveryService {
       newContactsCount,
       eligibleForOutreachCount,
       blockedByComplianceCount,
-      odooSyncedCount,
-      odooFailedCount,
+      odooSyncedCount: 0,
+      odooFailedCount: 0,
       leads: results
     };
   }
 
   /**
-   * Formats a cold-prospect Apollo lead description for Odoo CRM.
-   * Includes compliance status so sales team can see whether outreach is permitted.
+   * Formats discovered leads into standard CSV text for easy export.
    */
-  private formatApolloDescription(
-    ingestion: IngestionResult,
-    compliance: ComplianceDecision,
-    qualification: QualificationResult
-  ): string {
-    const { company, contact } = ingestion;
-    const complianceStatus = compliance.allowed
-      ? 'COMPLIANT - Eligible for outreach'
-      : `BLOCKED - ${compliance.reasonCode || 'Compliance policy'}`;
+  public exportToCsv(leads: DiscoveredLeadResult[]): string {
+    const headers = [
+      'Company',
+      'Job Title',
+      'Contact Name',
+      'Contact Email',
+      'Phone',
+      'Company Phone',
+      'Country',
+      'Industry',
+      'Compliance Status',
+      'Compliance Reason',
+      'Qualification Outcome'
+    ];
 
-    return `=== APOLLO COLD PROSPECT ===
-Source: Apollo.io | Synced: ${new Date().toISOString()}
+    const escapeCsv = (val: string | number | boolean | undefined | null): string => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
 
-CONTACT:
-- Name: ${contact.firstName || ''} ${contact.lastName || ''} (${contact.email})
-- Title: ${contact.jobTitle || 'Not specified'}
-- Phone: ${contact.phone || 'Not available'}
+    const rows = leads.map(l => [
+      escapeCsv(l.ingestion.company.name),
+      escapeCsv(l.ingestion.contact.jobTitle),
+      escapeCsv([l.ingestion.contact.firstName, l.ingestion.contact.lastName].filter(Boolean).join(' ') || l.ingestion.contact.email),
+      escapeCsv(l.ingestion.contact.email),
+      escapeCsv(l.ingestion.contact.phone),
+      escapeCsv(l.ingestion.company.companyPhone),
+      escapeCsv(l.ingestion.contact.country),
+      escapeCsv(l.ingestion.company.industry),
+      escapeCsv(l.compliance.allowed ? 'ALLOWED' : 'BLOCKED'),
+      escapeCsv(l.compliance.reasonCode || ''),
+      escapeCsv(l.qualification.outcome)
+    ].join(','));
 
-COMPANY:
-- Name: ${company.name}
-- Domain: ${company.domain}
-- Country: ${company.country}
-- Industry: ${company.industry || 'Not specified'}
-- Team Size: ${company.teamSize || 'Unknown'}
-
-COMPLIANCE STATUS:
-- ${complianceStatus}
-
-QUALIFICATION:
-- Outcome: ${qualification.outcome}
-- Rationale: ${qualification.rationale}
-- Segment Fit: ${qualification.segmentFit ? 'YES' : 'NO'}
-- Role Target Fit: ${qualification.roleTargetFit ? 'YES' : 'NO'}
-- Team Size Fit: ${qualification.teamSizeFit ? 'YES' : 'NO'}
-
-NOTE: Cold prospect from Apollo discovery.
-Priority escalates automatically to [AI Handover] when the prospect replies warmly.
-`;
+    return [headers.join(','), ...rows].join('\n');
   }
 }

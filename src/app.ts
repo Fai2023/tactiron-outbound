@@ -204,6 +204,28 @@ export function buildApp(
     });
   });
 
+  // 2c-2. Leads Export Endpoint (Export all ingested/discovered leads as CSV or JSON)
+  app.get('/leads/export', async (req, reply) => {
+    const query = req.query as { format?: string } | undefined;
+    const format = query?.format?.toLowerCase() || 'csv';
+
+    if (format === 'json') {
+      const records = orchestrator.ingestionService.getExportableRecords();
+      return reply.status(200).send({
+        total: records.length,
+        leads: records
+      });
+    }
+
+    const csv = orchestrator.ingestionService.exportToCsv();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="leads_export_${dateStr}.csv"`)
+      .status(200)
+      .send(csv);
+  });
+
   // 2d. Queue Discovered Leads into Outreach Campaign Endpoint
   const QueueLeadsSchema = z.object({
     campaignName: z.string().optional().default('PTT GCC & Regional Fleet Outbound'),
@@ -397,12 +419,10 @@ export function buildApp(
     // Suppress pending email dispatch jobs for this prospect to prevent double outreach
     const emailToSuppress = data.partnerEmail || (() => {
       // Look up contact by phone if email wasn't provided directly in webhook
-      const contacts = (orchestrator.ingestionService as any).contactsByEmail as Map<string, any> | undefined;
-      if (contacts) {
-        for (const [_, c] of contacts.entries()) {
-          if (c.phone && waHandler.isPhoneActiveOnWhatsApp(c.phone)) {
-            return c.email;
-          }
+      const contacts = orchestrator.ingestionService.getAllContacts();
+      for (const c of contacts) {
+        if (c.phone && waHandler.isPhoneActiveOnWhatsApp(c.phone)) {
+          return c.email;
         }
       }
       return undefined;
