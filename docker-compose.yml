@@ -15,22 +15,10 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-public"
-      - "traefik.http.services.tactiron-outbound.loadbalancer.server.port=3000"
-      # Console, internal APIs, lead discovery and campaigns sit behind a password. CONSOLE_BASIC_AUTH is an
-      # htpasswd line in .env, single-quoted so the $ signs stay literal: CONSOLE_BASIC_AUTH='user:$apr1$...'.
-      # Compose refuses to start without it rather than run the console open.
-      - "traefik.http.middlewares.tactiron-outbound-auth.basicauth.users=${CONSOLE_BASIC_AUTH:?Set CONSOLE_BASIC_AUTH in .env}"
-      - "traefik.http.middlewares.tactiron-outbound-auth.basicauth.realm=Tactiron Outbound"
       - "traefik.http.routers.tactiron-outbound.rule=Host(`${DOMAIN:-tactiron.dafifi.net}`)"
       - "traefik.http.routers.tactiron-outbound.entrypoints=websecure"
       - "traefik.http.routers.tactiron-outbound.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.tactiron-outbound.middlewares=tactiron-outbound-auth"
-      # Smartlead and Odoo call the webhooks from outside, and /health stays open for uptime checks
-      - "traefik.http.routers.tactiron-outbound-public.rule=Host(`${DOMAIN:-tactiron.dafifi.net}`) && (Path(`/health`) || PathPrefix(`/webhooks/`))"
-      - "traefik.http.routers.tactiron-outbound-public.priority=100"
-      - "traefik.http.routers.tactiron-outbound-public.entrypoints=websecure"
-      - "traefik.http.routers.tactiron-outbound-public.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.tactiron-outbound-public.service=tactiron-outbound"
+      - "traefik.http.services.tactiron-outbound.loadbalancer.server.port=3000"
     restart: unless-stopped
 
 networks:
