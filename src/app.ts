@@ -390,6 +390,7 @@ export function buildApp(
         replyClassification: execution.replyClassification,
         qualificationOutcome: execution.qualification.outcome,
         handoverStatus: execution.handoverEvent?.status || 'NO_HANDOVER_REQUIRED',
+        handoverError: execution.handoverEvent?.errorLog?.split('\n')[0],
         odooLeadId: execution.handoverEvent?.odooLeadId
       });
     }
@@ -601,6 +602,7 @@ export function buildApp(
       replyClassification: execution.replyClassification,
       qualificationOutcome: execution.qualification.outcome,
       handoverStatus: execution.handoverEvent?.status || 'NO_HANDOVER',
+      handoverError: execution.handoverEvent?.errorLog?.split('\n')[0],
       handoverDescription: execution.handoverEvent
         ? orchestrator.handoverService.formatOdooDescription(
             execution.handoverEvent.handoverPack,

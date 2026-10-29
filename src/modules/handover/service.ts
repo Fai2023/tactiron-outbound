@@ -231,6 +231,8 @@ ${threadFormatted}
       event.status = 'FAILED_RETRYING';
       event.errorLog = err instanceof Error ? err.message : String(err);
       event.retryCount = 1;
+      // Odoo RPC errors can carry a full server-side cache dump; the first line names the cause
+      console.error(`Odoo handover failed for ${contact.email} (${company.name}): ${event.errorLog.split('\n')[0]}`);
     }
 
     // 5. Freeze sequences for the entire account

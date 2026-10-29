@@ -55,6 +55,8 @@ export interface WhatsAppHandlerResult {
   metaWindowUrgent: boolean;
   /** Odoo CRM lead ID if handover was created */
   odooLeadId?: number;
+  /** Why the Odoo CRM handover failed, when it did */
+  odooError?: string;
   /** Timestamp this handler processed the message */
   processedAt: string;
 }
@@ -156,6 +158,7 @@ export class WhatsAppHandler {
     // ── CRM Handover (types 4–9) ────────────────────────────────────────────
     let handoverTriggered = false;
     let odooLeadId: number | undefined;
+    let odooError: string | undefined;
 
     if (HANDOVER_REPLY_TYPES.has(classification.replyType)) {
       handoverTriggered = true;
@@ -193,8 +196,10 @@ export class WhatsAppHandler {
 
         const result = await this.odooAdapter.createOrUpdateLead(leadPayload);
         odooLeadId = result.odooLeadId;
-      } catch {
+      } catch (err) {
         // Non-fatal: CRM create failure logged, operation continues
+        odooError = (err instanceof Error ? err.message : String(err)).split('\n')[0];
+        console.error(`Odoo handover failed for WhatsApp ${phone}: ${odooError}`);
       }
     }
 
@@ -207,6 +212,7 @@ export class WhatsAppHandler {
       withinMetaWindow,
       metaWindowUrgent,
       odooLeadId,
+      odooError,
       processedAt: now.toISOString()
     };
 

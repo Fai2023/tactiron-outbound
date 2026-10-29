@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { MockOdooAdapter } from '../src/integrations/odoo/adapter.js';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { VerticalSliceOrchestrator } from '../src/vertical-slice.js';
@@ -154,6 +155,27 @@ describe('Operational API & Webhook Endpoints', () => {
 
     expect(res.statusCode).toBe(302);
     expect(res.headers.location).toBe('/console');
+  });
+
+  it('POST /internal/simulate-reply explains a failed Odoo handover', async () => {
+    const odoo = orchestrator.odooAdapter as MockOdooAdapter;
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    odoo.simulateNetworkFailure = true;
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/simulate-reply',
+        payload: { contactEmail: 'ops@failingcrm.ae', replyText: 'Can we book a demo next week?' }
+      });
+
+      const body = res.json();
+      expect(body.handoverStatus).toBe('FAILED_RETRYING');
+      expect(body.handoverError).toBe('Simulated Odoo connection timeout (HTTP 504)');
+      expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('Odoo handover failed for ops@failingcrm.ae'));
+    } finally {
+      odoo.simulateNetworkFailure = false;
+      errorLog.mockRestore();
+    }
   });
 
   it('POST /internal/simulate-reply runs simulator and returns classification and handover pack', async () => {
