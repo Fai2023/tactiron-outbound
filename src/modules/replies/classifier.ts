@@ -80,6 +80,7 @@ export class ReplyClassifier {
       };
     } catch (error) {
       // Step 3: Safe failure recovery - fallback closed on unexpected errors
+      console.error('Reply classification failed; escalating to human review:', error instanceof Error ? error.message : error);
       return {
         replyType: ReplyType.UNCERTAIN_OR_LOW_CONFIDENCE,
         intentName: 'PROCESSING_ERROR_FALLBACK',

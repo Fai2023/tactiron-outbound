@@ -25,6 +25,7 @@ const envSchema = z.object({
   SMARTLEAD_API_KEY: z.string().optional(),
   APOLLO_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  CLAUDE_MODEL: z.string().default('claude-opus-5-5'),
   
   // Odoo CRM configuration
   ODOO_URL: z.string().url().optional(),

@@ -15,7 +15,7 @@ import { getConsoleHtml } from './ui/console.js';
 import { DispatchQueue, DispatchWorker, AutomationSettings } from './modules/dispatch/index.js';
 import { WhatsAppHandler } from './modules/whatsapp/handler.js';
 import { MockOdooWhatsAppAdapter, OdooWhatsAppAdapter } from './integrations/odoo/whatsapp-adapter.js';
-import { MockLLMAdapter } from './integrations/llm/adapter.js';
+import { createLLMAdapter } from './integrations/llm/adapter.js';
 
 export function buildApp(
   orchestrator: VerticalSliceOrchestrator = new VerticalSliceOrchestrator(),
@@ -43,7 +43,7 @@ export function buildApp(
     : new MockOdooWhatsAppAdapter();
 
   const waHandler = whatsAppHandler || new WhatsAppHandler(
-    new MockLLMAdapter(),
+    createLLMAdapter(config.ANTHROPIC_API_KEY, config.CLAUDE_MODEL),
     whatsAppAdapter,
     orchestrator.odooAdapter
   );

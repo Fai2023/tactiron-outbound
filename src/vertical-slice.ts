@@ -13,7 +13,8 @@ import { QualificationEngine } from './modules/qualification/engine.js';
 import { ComplianceRouter } from './modules/compliance/router.js';
 import { ReplyClassifier } from './modules/replies/classifier.js';
 import { HandoverService } from './modules/handover/service.js';
-import { MockLLMAdapter } from './integrations/llm/adapter.js';
+import { createLLMAdapter } from './integrations/llm/adapter.js';
+import { config } from './config/env.js';
 import { MockOdooAdapter } from './integrations/odoo/adapter.js';
 import {
   Channel,
@@ -67,7 +68,7 @@ export class VerticalSliceOrchestrator {
     this.qualificationEngine = new QualificationEngine(options?.minTeamSize ?? 20);
     this.complianceRouter = new ComplianceRouter();
     this.replyClassifier = new ReplyClassifier(
-      new MockLLMAdapter(),
+      createLLMAdapter(config.ANTHROPIC_API_KEY, config.CLAUDE_MODEL),
       undefined,
       options?.isMonth1ReviewMode ?? false
     );
