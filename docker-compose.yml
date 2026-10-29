@@ -1,0 +1,26 @@
+# Production stack on the shared droplet (/opt/tactiron-outbound), routed by the shared Traefik
+# in /opt/traefik. Secrets live in .env beside this file on the server, never in git.
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/fai2023/tactiron-outbound:latest}
+    build: .
+    env_file: .env
+    environment:
+      # Overrides any HOST/PORT in .env: the app binds to HOST, so it must stay 0.0.0.0 in the container
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.tactiron-outbound.rule=Host(`${DOMAIN:-tactiron.dafifi.net}`)"
+      - "traefik.http.routers.tactiron-outbound.entrypoints=websecure"
+      - "traefik.http.routers.tactiron-outbound.tls.certresolver=letsencrypt"
+      - "traefik.http.services.tactiron-outbound.loadbalancer.server.port=3000"
+    restart: unless-stopped
+
+networks:
+  traefik-public:
+    external: true
