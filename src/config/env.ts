@@ -1,4 +1,10 @@
+import { existsSync } from 'node:fs';
 import { z } from 'zod';
+
+// Load a local .env for dev/prod runs; tests run on defaults so they never hit live APIs
+if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && existsSync('.env')) {
+  process.loadEnvFile('.env');
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -35,7 +41,9 @@ const envSchema = z.object({
 export type EnvConfig = z.infer<typeof envSchema>;
 
 export function loadEnv(envInput: Record<string, string | undefined> = process.env): EnvConfig {
-  const result = envSchema.safeParse(envInput);
+  // Treat blank entries (e.g. `SLACK_WEBHOOK_URL=` copied from .env.example) as unset
+  const present = Object.fromEntries(Object.entries(envInput).filter(([, v]) => v !== ''));
+  const result = envSchema.safeParse(present);
   if (!result.success) {
     console.error('Invalid environment configuration:', result.error.format());
     throw new Error('Environment configuration validation failed');

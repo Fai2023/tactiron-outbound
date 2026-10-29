@@ -5,6 +5,7 @@
 
 import { LeadIngestionService, RawLeadImport, IngestionResult } from './ingestion.js';
 import { ComplianceRouter } from '../compliance/router.js';
+import { toCountryCode } from './apollo-discovery.js';
 import { QualificationEngine } from '../qualification/engine.js';
 import { ComplianceDecision, QualificationResult } from '../../core/types/index.js';
 
@@ -132,8 +133,9 @@ export class ApolloCsvImporter {
         continue;
       }
 
-      const rawCountry = row['Country']?.toLowerCase().trim() || 'ae';
-      const countryCode = COUNTRY_LOOKUP[rawCountry] || 'AE';
+      const rawCountry = row['Country']?.toLowerCase().trim();
+      // Unknown country stays UNKNOWN so the compliance router fails closed
+      const countryCode = (rawCountry && COUNTRY_LOOKUP[rawCountry]) || toCountryCode(rawCountry) || 'UNKNOWN';
       const teamSizeStr = row['# Employees']?.replace(/[^0-9]/g, '');
       const teamSize = teamSizeStr ? parseInt(teamSizeStr, 10) : undefined;
 

@@ -161,6 +161,9 @@ export function buildApp(
         totalDiscovered: report.totalDiscovered,
         newCompaniesCount: report.newCompaniesCount,
         newContactsCount: report.newContactsCount,
+        skippedNoEmailCount: report.skippedNoEmailCount,
+        unknownCountryCount: report.unknownCountryCount,
+        unknownTeamSizeCount: report.unknownTeamSizeCount,
         eligibleForOutreachCount: report.eligibleForOutreachCount,
         blockedByComplianceCount: report.blockedByComplianceCount,
         leads: report.leads.map(l => ({

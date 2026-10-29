@@ -34,6 +34,9 @@ export interface ApolloDiscoveryReport {
   totalDiscovered: number;
   newCompaniesCount: number;
   newContactsCount: number;
+  skippedNoEmailCount: number;
+  unknownCountryCount: number;
+  unknownTeamSizeCount: number;
   eligibleForOutreachCount: number;
   blockedByComplianceCount: number;
   /** How many leads were synced to Odoo CRM (deprecated; cold leads are no longer sent to Odoo) */
@@ -71,6 +74,29 @@ const COUNTRY_MAP: Record<string, string> = {
   'united states': 'US',
   'usa': 'US'
 };
+
+// Any other country name Apollo returns ("Morocco", "Ethiopia") resolves through the ISO region list
+let regionNameIndex: Map<string, string> | undefined;
+
+export function toCountryCode(raw?: string): string | undefined {
+  const name = raw?.trim().toLowerCase();
+  if (!name) return undefined;
+  if (COUNTRY_MAP[name]) return COUNTRY_MAP[name];
+  if (/^[a-z]{2}$/.test(name)) return name.toUpperCase();
+
+  if (!regionNameIndex) {
+    regionNameIndex = new Map();
+    const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+    for (let a = 65; a <= 90; a++) {
+      for (let b = 65; b <= 90; b++) {
+        const code = String.fromCharCode(a, b);
+        const regionName = displayNames.of(code);
+        if (regionName && regionName !== code) regionNameIndex.set(regionName.toLowerCase(), code);
+      }
+    }
+  }
+  return regionNameIndex.get(name);
+}
 
 export class ApolloDiscoveryService {
   private apolloAdapter: IApolloAdapter;
@@ -119,16 +145,18 @@ export class ApolloDiscoveryService {
 
     const apolloResponse = await this.apolloAdapter.searchPeople(searchParams);
     const results: DiscoveredLeadResult[] = [];
+    let skippedNoEmailCount = 0;
 
     for (const person of apolloResponse.people) {
       if (!person.email) {
         // Skip records with unavailable or unrevealed email
+        skippedNoEmailCount++;
         continue;
       }
 
       const domain = person.organization?.primary_domain || person.email.split('@')[1];
-      const rawCountry = person.country || person.organization?.country || 'AE';
-      const countryCode = COUNTRY_MAP[rawCountry.toLowerCase()] || (rawCountry.trim().length === 2 ? rawCountry.trim().toUpperCase() : 'AE');
+      // Unknown country stays UNKNOWN so the compliance router fails closed instead of applying another market's rules
+      const countryCode = toCountryCode(person.country) || toCountryCode(person.organization?.country) || 'UNKNOWN';
 
       const leadImport: RawLeadImport = {
         companyName: person.organization?.name || domain,
@@ -136,7 +164,8 @@ export class ApolloDiscoveryService {
         website: person.organization?.website_url,
         country: countryCode,
         industry: person.organization?.industry || 'Transportation/Logistics',
-        teamSize: person.organization?.estimated_num_employees || 25,
+        // Left unset when Apollo has no headcount, so it fails the team-size check until enrichment fills it
+        teamSize: person.organization?.estimated_num_employees || undefined,
         segmentFit: true, // Matched PTT logistics/fleet criteria
         companyPhone: person.organization?.phone,
         contactEmail: person.email,
@@ -195,6 +224,9 @@ export class ApolloDiscoveryService {
       totalDiscovered: apolloResponse.people.length,
       newCompaniesCount,
       newContactsCount,
+      skippedNoEmailCount,
+      unknownCountryCount: results.filter(r => r.ingestion.contact.country === 'UNKNOWN').length,
+      unknownTeamSizeCount: results.filter(r => r.ingestion.company.teamSize === undefined).length,
       eligibleForOutreachCount,
       blockedByComplianceCount,
       odooSyncedCount: 0,
