@@ -15,7 +15,7 @@ import { ReplyClassifier } from './modules/replies/classifier.js';
 import { HandoverService } from './modules/handover/service.js';
 import { createLLMAdapter } from './integrations/llm/adapter.js';
 import { config } from './config/env.js';
-import { MockOdooAdapter } from './integrations/odoo/adapter.js';
+import { createOdooAdapter, MockOdooAdapter, RecordingOdooAdapter } from './integrations/odoo/adapter.js';
 import {
   Channel,
   ConsentRecord,
@@ -58,7 +58,7 @@ export class VerticalSliceOrchestrator {
   public complianceRouter: ComplianceRouter;
   public replyClassifier: ReplyClassifier;
   public handoverService: HandoverService;
-  public odooAdapter: MockOdooAdapter;
+  public odooAdapter: MockOdooAdapter | RecordingOdooAdapter;
 
   constructor(options?: {
     minTeamSize?: number;
@@ -72,7 +72,16 @@ export class VerticalSliceOrchestrator {
       undefined,
       options?.isMonth1ReviewMode ?? false
     );
-    this.odooAdapter = new MockOdooAdapter();
+    this.odooAdapter = createOdooAdapter({
+      url: config.ODOO_URL,
+      db: config.ODOO_DB,
+      username: config.ODOO_USERNAME,
+      apiKey: config.ODOO_API_KEY,
+      pipeline: {
+        teamName: config.ODOO_TEAM_NAME,
+        stageName: config.ODOO_STAGE_NAME
+      }
+    });
     this.handoverService = new HandoverService(this.odooAdapter);
   }
 

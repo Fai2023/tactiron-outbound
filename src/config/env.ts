@@ -32,6 +32,9 @@ const envSchema = z.object({
   ODOO_DB: z.string().optional(),
   ODOO_USERNAME: z.string().optional(),
   ODOO_API_KEY: z.string().optional(),
+  // Where warm handovers land: looked up by name so the same values work on test and live Odoo
+  ODOO_TEAM_NAME: z.string().optional(),
+  ODOO_STAGE_NAME: z.string().optional(),
   
   // Operational Alerts
   SLACK_WEBHOOK_URL: z.string().url().optional(),

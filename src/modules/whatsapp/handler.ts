@@ -19,7 +19,7 @@ import { ILLMAdapter } from '../../integrations/llm/adapter.js';
 import { IOdooWhatsAppAdapter, OdooWhatsAppMessage } from '../../integrations/odoo/whatsapp-adapter.js';
 import { IOdooAdapter } from '../../integrations/odoo/adapter.js';
 import { ReplyType, ReplyClassification } from '../../core/types/index.js';
-import { APPROVED_HOLDING_REPLY } from '../../config/policy.js';
+import { APPROVED_HOLDING_REPLY, odooTagsFor } from '../../config/policy.js';
 
 /** Reply types that require a warm human handover */
 const HANDOVER_REPLY_TYPES = new Set<ReplyType>([
@@ -175,7 +175,7 @@ export class WhatsAppHandler {
         const leadPayload = {
           name: `[WHATSAPP] ${msg.partnerName} – ${classification.intentName}`,
           contact_name: msg.partnerName,
-          email_from: msg.partnerEmail || `wa_${phone}@whatsapp.placeholder`,
+          email_from: msg.partnerEmail, // No email: Odoo matches the contact on phone instead
           phone,
           partner_name: msg.partnerName,
           description: [
@@ -187,7 +187,8 @@ export class WhatsAppHandler {
             `Meta Window Urgent: ${metaWindowUrgent ? 'YES — reply within 4 hours' : 'No'}`,
             `Processed At: ${now.toISOString()}`
           ].join('\n'),
-          priority: priorityMap[classification.replyType] ?? '1'
+          priority: priorityMap[classification.replyType] ?? '1',
+          tagNames: odooTagsFor(classification.replyType, 'WHATSAPP')
         };
 
         const result = await this.odooAdapter.createOrUpdateLead(leadPayload);

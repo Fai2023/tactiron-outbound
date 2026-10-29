@@ -3,7 +3,7 @@
  * Source: AI - to human Handover_Rules.xlsx & Outbound_Sales_Pipeline (1).pdf
  */
 
-import { Channel } from '../core/types/index.js';
+import { Channel, ReplyType } from '../core/types/index.js';
 
 export const POLICY_VERSION = 'v1.0.0-2026';
 
@@ -188,3 +188,25 @@ export const COUNTRY_POLICIES: Record<string, CountryPolicy> = {
  */
 export const APPROVED_HOLDING_REPLY = 
   "Thank you for getting back to us. I have shared your details with our regional specialist, and a colleague will respond to you today.";
+
+/**
+ * Odoo CRM tags applied to new handovers, by name (Fleet sales pipeline, set up by Tactiron's CRM admin).
+ * Tags that do not exist in Odoo are skipped, never created.
+ */
+export const ODOO_HANDOVER_TAGS = {
+  always: 'AI_HANDOVER',
+  whatsapp: 'WHATSAPP',
+  byReplyType: {
+    [ReplyType.DEMO_OR_MEETING_REQUEST]: 'DEMO_REQUEST',
+    [ReplyType.PRICING_OR_COMMERCIAL_TERMS]: 'PRICING_QUOTE',
+    [ReplyType.COMPLAINT_OR_LEGAL_THREAT]: 'COMPLIANCE_REVIEW'
+  } as Partial<Record<ReplyType, string>>
+};
+
+export function odooTagsFor(replyType: ReplyType, channel: 'EMAIL' | 'WHATSAPP'): string[] {
+  const tags = [ODOO_HANDOVER_TAGS.always];
+  if (channel === 'WHATSAPP') tags.push(ODOO_HANDOVER_TAGS.whatsapp);
+  const typeTag = ODOO_HANDOVER_TAGS.byReplyType[replyType];
+  if (typeTag) tags.push(typeTag);
+  return tags;
+}

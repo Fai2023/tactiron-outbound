@@ -21,6 +21,7 @@ import {
   ReplyType
 } from '../../core/types/index.js';
 import { IOdooAdapter, OdooLeadPayload } from '../../integrations/odoo/adapter.js';
+import { odooTagsFor } from '../../config/policy.js';
 
 export interface AssembleHandoverRequest {
   company: Company;
@@ -202,7 +203,8 @@ ${threadFormatted}
       phone: contact.phone,
       partner_name: company.name,
       description: this.formatOdooDescription(handoverPack, priority, slaDeadline),
-      priority: odooPriorityMap[priority]
+      priority: odooPriorityMap[priority],
+      tagNames: odooTagsFor(replyClassification.replyType, 'EMAIL')
     };
 
     const handoverId = crypto.randomUUID();
