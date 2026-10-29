@@ -87,6 +87,27 @@ If a lead fails any of these tests, it is **blocked immediately**. Only clean, l
 
 ---
 
+## 🎯 Step 2.5: Smart Campaign Routing & Localization (The Right Message in the Right Language)
+
+Before sending an outreach message, the system matches the contact to the exact right **SmartLead Campaign** and prepares the AI to speak the prospect's native business language:
+
+1. **Language & Regional Matching:**
+   * **French (`FR`)**: When a lead is located in **France** or Francophone West/North Africa (such as **Senegal, Côte d'Ivoire, Cameroon, Morocco, Tunisia, Algeria**), the system automatically routes them to French-language campaigns. The AI assistant also writes back in fluent French.
+   * **Arabic (`AR`)**: Prospects in GCC markets (such as the **United Arab Emirates, Saudi Arabia, Qatar, Kuwait, Oman**) receive campaigns and holding responses tailored for the Arab Gulf region.
+   * **English (`EN`)**: International B2B standard for Europe and the Nordics (**Germany, Netherlands, Sweden, Norway, UK**) as well as major African commercial hubs (**Nigeria, Kenya, South Africa, Ghana**).
+
+2. **Industry-Specific Messaging:**
+   Rather than sending a generic *"Check out our push-to-talk radios"* message, the system automatically classifies leads into their operational industry:
+   * **Logistics & Haulage**: Focuses on dispatch speed, cross-border tracking, and driver connectivity.
+   * **Private Security & Guarding**: Focuses on rapid alarm response, lone worker protection, and patrol check-ins.
+   * **First Responders & Emergency Medical**: Focuses on instant priority push-to-talk, zero-latency coordination, and extreme ruggedness.
+   * **Aviation & Maritime**: Focuses on ground crew coordination, ramp communications, and harsh weather performance.
+   * **Mining, Heavy Industry & Energy**: Focuses on hazardous environment safety and wide-area remote coverage.
+
+If an industry or region does not have a dedicated micro-campaign yet, the system safely falls back to a clean English master campaign.
+
+---
+
 ## Step 3: Safe, Scheduled Sending (The Polite Postman)
 
 Spam filters hate bulk email blasts. If a company sends 1,000 emails in 5 minutes, email providers (like Google and Microsoft) will send those messages straight to the spam folder or suspend the account.
@@ -180,6 +201,7 @@ At all times, sales leadership and management remain in 100% control:
 | Feature | What It Does for the Business |
 |---|---|
 | **Automated Sourcing** | Finds real fleet operators without sales reps wasting hours on manual internet research. |
+| **Smart Routing & Localization** | Directs leads to industry-tailored SmartLead campaigns and replies in their local language (French, Arabic, or English). |
 | **High-Signal Odoo CRM** | Prevents thousands of cold unverified leads from clogging the CRM; Odoo only receives warm, qualified leads requiring sales action, while cold leads remain easily exportable to CSV. |
 | **Built-in Compliance** | Protects our brand from privacy violations and spam blacklists automatically. |
 | **Paced Sending** | Ensures emails land in the primary inbox, not the junk folder. |

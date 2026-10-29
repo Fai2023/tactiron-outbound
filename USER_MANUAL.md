@@ -14,25 +14,30 @@ Welcome to the **Tactiron Outbound Sales Automation** Operations Manual. This gu
    - [One-Click Push to Campaign](#one-click-push-to-campaign)
    - [Exporting Results to CSV](#exporting-results-to-csv)
 5. [Apollo CSV Batch Importer](#5-apollo-csv-batch-importer)
-6. [Reply & Guardrail Testing Lab](#6-reply--guardrail-testing-lab)
+6. [SmartLead Campaign Routing & Multi-Lingual Setup](#6-smartlead-campaign-routing--multi-lingual-setup)
+   - [How Industry and Country Routing Works](#how-industry-and-country-routing-works)
+   - [Country to Language Resolution Rules](#country-to-language-resolution-rules)
+   - [Configuring Real SmartLead Campaign IDs](#configuring-real-smartlead-campaign-ids)
+   - [Fallback Resolution Hierarchy](#fallback-resolution-hierarchy)
+7. [Reply & Guardrail Testing Lab](#7-reply--guardrail-testing-lab)
    - [The 7 Guardrail Keywords](#the-7-guardrail-keywords)
    - [The 9 Reply Categories & SLAs](#the-9-reply-categories--slas)
    - [Simulating Prospect Replies](#simulating-prospect-replies)
-7. [Automation Settings & Queue Runner](#7-automation-settings--queue-runner)
+8. [Automation Settings & Queue Runner](#8-automation-settings--queue-runner)
    - [Dispatch Schedule & Timezone Window](#dispatch-schedule--timezone-window)
    - [Campaign Cadence & Follow-up Delays](#campaign-cadence--follow-up-delays)
    - [Retry Backoff & Bounce Policy](#retry-backoff--bounce-policy)
    - [Live Worker Monitor & Manual Batch Trigger](#live-worker-monitor--manual-batch-trigger)
-8. [Odoo CRM Handover Inspection](#8-odoo-crm-handover-inspection)
+9. [Odoo CRM Handover Inspection](#9-odoo-crm-handover-inspection)
    - [The 6-Item Handover Pack](#the-6-item-handover-pack)
    - [Sales Rep Responsibilities & Deadlines](#sales-rep-responsibilities--deadlines)
-9. [WhatsApp AI Integration (Odoo Native)](#9-whatsapp-ai-integration-odoo-native)
-   - [How WhatsApp Inbound Works via Odoo Discuss](#how-whatsapp-inbound-works-via-odoo-discuss)
-   - [Meta 24-Hour Conversation Window](#meta-24-hour-conversation-window)
-   - [Automatic Email Sequence Suppression](#automatic-email-sequence-suppression)
-   - [Using the WhatsApp AI Live Console Tab](#using-the-whatsapp-ai-live-console-tab)
-10. [Compliance Router & Market Policies](#10-compliance-router--market-policies)
-11. [Troubleshooting & FAQ](#11-troubleshooting--faq)
+10. [WhatsApp AI Integration (Odoo Native)](#10-whatsapp-ai-integration-odoo-native)
+    - [How WhatsApp Inbound Works via Odoo Discuss](#how-whatsapp-inbound-works-via-odoo-discuss)
+    - [Meta 24-Hour Conversation Window](#meta-24-hour-conversation-window)
+    - [Automatic Email Sequence Suppression](#automatic-email-sequence-suppression)
+    - [Using the WhatsApp AI Live Console Tab](#using-the-whatsapp-ai-live-console-tab)
+11. [Compliance Router & Market Policies](#11-compliance-router--market-policies)
+12. [Troubleshooting & FAQ](#12-troubleshooting--faq)
 
 ---
 
@@ -176,7 +181,70 @@ The **Apollo CSV Import** tab (`nav-csv-import`) allows you to import pre-export
 
 ---
 
-## 6. Reply & Guardrail Testing Lab
+## 6. SmartLead Campaign Routing & Multi-Lingual Setup
+
+The outbound sales engine features intelligent **Industry Classification + Country-to-Language Resolution** to automatically route leads into the correct SmartLead campaign and generate culturally tailored AI holding replies.
+
+### How Industry and Country Routing Works
+When a contact is queued for outreach:
+1. **Industry Extraction**: The contact's industry is mapped to one of 16 normalized industry slugs:
+   * `logistics` (Freight, cargo, haulage, 3PL, warehousing, spedition, courier)
+   * `security` (Manned guarding, cash-in-transit, armed response, patrol)
+   * `first_responders` (Ambulance, emergency medical, fire & rescue, disaster response)
+   * `aviation` (Airport operations, airlines, ground handling, air cargo)
+   * `mining_construction` (Mining, quarrying, civil engineering, infrastructure, EPC)
+   * `energy_utilities` (Power distribution, oil & gas, renewables, water/waste utilities)
+   * `passenger_transport` (Bus, coach, taxi, ride-hailing, shuttle, ferry, metro)
+   * `maritime` (Ports, container terminals, shipping, stevedoring, shipyards)
+   * `manufacturing` (Automotive, chemical, petrochemical, industrial parks)
+   * `hospitality` (Hotels, resorts, stadiums, event management, convention centres)
+   * `healthcare` (Hospitals, clinics, trauma centres, medical logistics)
+   * `facilities` (Facilities management, property maintenance, cleaning)
+   * `agriculture` (Commercial farms, plantations, agribusiness, forestry)
+   * `government_defence` (Public safety, civil protection, customs, border control)
+   * `ngo_field` (Humanitarian relief, conservation, field inspection)
+   * `general` (Fallback for unmapped industries)
+
+2. **Country to Language Resolution**: The contact's country is mapped to an ISO language code:
+   * **French (`FR`)**: France, Monaco, Belgium, Switzerland, Luxembourg, and Francophone West & North African countries (Senegal, Côte d'Ivoire, Cameroon, Mali, Burkina Faso, Niger, Guinea, Gabon, Congo, DRC, Madagascar, Togo, Benin, Rwanda, Burundi, Djibouti, Chad, CAR, Morocco, Tunisia, Algeria).
+   * **Arabic (`AR`)**: GCC countries (Saudi Arabia, UAE, Qatar, Kuwait, Bahrain, Oman) and North/East Africa (Egypt, Libya, Sudan).
+   * **English (`EN`)**: International B2B standard for Europe & the Nordics (UK, Germany, Netherlands, Sweden, Norway, Denmark, Poland, etc.) and Anglophone Africa (Nigeria, Kenya, South Africa, Ghana, Uganda, Tanzania, etc.).
+   * Unknown/unlisted countries safely default to `EN`.
+
+3. **Routing Key Generation**: The system forms the routing key `${IndustrySlug}_${LanguageCode}` (e.g. `logistics_FR`, `security_AR`, `aviation_EN`).
+
+### Configuring Real SmartLead Campaign IDs
+All campaign routes are declared in `src/config/campaign-routing.config.ts`.
+By default, IDs are set to `0` (placeholder mode). Once campaigns are created inside your SmartLead dashboard:
+1. Open `src/config/campaign-routing.config.ts`.
+2. Locate the target vertical and language key.
+3. Replace the `0` with the actual numerical campaign ID from the SmartLead URL or campaign dashboard:
+```typescript
+export const CAMPAIGN_ROUTING_TABLE: Record<RoutingKey, number> = {
+  // Logistics & Transportation
+  logistics_EN: 14201, // Your actual SmartLead campaign ID
+  logistics_FR: 14202, // French logistics campaign
+  logistics_AR: 14203, // Arabic/GCC logistics campaign
+  // ...
+};
+```
+
+### Fallback Resolution Hierarchy
+To ensure no lead is ever stranded or dropped:
+1. **Primary Match**: Looks up `${IndustrySlug}_${LanguageCode}` (e.g. `maritime_FR`).
+2. **Language Fallback**: If unassigned or set to placeholder, falls back to `general_${LanguageCode}` (e.g. `general_FR`).
+3. **Master Fallback**: If language campaign is not configured, safely defaults to `general_EN`.
+
+### Multi-Lingual AI Reply Generation
+When prospects reply:
+* The LLM reply generator recognizes the contact's resolved language (`FR`, `AR`, `EN`).
+* French leads receive holding replies drafted in polite, professional French.
+* Arabic leads receive replies crafted in Arabic business phrasing.
+* English leads receive clear, direct English responses.
+
+---
+
+## 7. Reply & Guardrail Testing Lab
 
 The **Reply & Guardrail Lab** tab (`nav-simulator`) allows operators to test how prospect responses will be handled **before** activating live campaigns.
 
@@ -209,7 +277,7 @@ The system executes a deterministic substring scan for:
 
 ---
 
-## 7. Automation Settings & Queue Runner
+## 8. Automation Settings & Queue Runner
 
 The **Automation Settings** tab (`nav-automation`) configures the background `node-cron` queue runner.
 
@@ -243,7 +311,7 @@ Click **Save Automation Settings** to apply changes to the live worker in real t
 
 ---
 
-## 8. Odoo CRM Handover Inspection
+## 9. Odoo CRM Handover Inspection
 
 The **Odoo CRM Handovers** tab (`nav-handovers`) displays all warm prospects and commercial inquiries that have been synchronized to Odoo CRM (`crm.lead`).
 
@@ -277,7 +345,7 @@ Every handover synced to Odoo contains the complete 6-item pack inside the lead 
 
 ---
 
-## 9. WhatsApp AI Integration (Odoo Native)
+## 10. WhatsApp AI Integration (Odoo Native)
 
 The system features native integration with Odoo's WhatsApp module (`discuss.channel`) to intelligently manage prospect-initiated inbound chats.
 
@@ -307,7 +375,7 @@ Navigate to **WhatsApp AI Live** (`nav-whatsapp`) in the Operations Console:
 
 ---
 
-## 10. Compliance Router & Market Policies
+## 11. Compliance Router & Market Policies
 
 The **Compliance & Policy** tab (`nav-compliance`) details the deterministic rules applied to every contact:
 
@@ -326,7 +394,7 @@ The **Compliance & Policy** tab (`nav-compliance`) details the deterministic rul
 
 ---
 
-## 11. Troubleshooting & FAQ
+## 12. Troubleshooting & FAQ
 
 #### Q: Why are my queued leads not sending immediately?
 **A:** Check the **Live Worker Monitor Card** in the Automation Settings tab:

@@ -71,6 +71,21 @@ To prevent cluttering Odoo CRM with thousands of cold, unverified, or compliance
 * **Cold Discovered Leads**: Retained locally in the outbound sales engine. Operators can filter, queue compliant leads into outreach sequences, or export records directly to CSV via the Web Console or the `GET /leads/export` endpoint.
 * **Warm Handovers (`[AI Handover]`)**: Odoo CRM (`crm.lead`) exclusively receives high-intent, qualified opportunities when a prospect engages (via positive reply, meeting request, or WhatsApp inbound chat). Every handover carries the complete 6-item Handover Pack and SLA deadline.
 
+### F. Multi-Market Campaign Routing & Multi-Lingual AI (SmartLead)
+When leads are pushed into outreach sequences, the system executes combined **Industry Classification + Country-to-Language Resolution** to automatically select the optimal SmartLead campaign and generate culturally and linguistically aligned AI holding replies:
+* **Country → Language Resolution (`src/config/country-language.map.ts`)**:
+  * **French (`FR`)**: France, Monaco, Belgium, Switzerland, Luxembourg, and Francophone West/North Africa (Senegal, Côte d'Ivoire, Cameroon, Mali, Burkina Faso, Morocco, Tunisia, Algeria, etc.).
+  * **Arabic (`AR`)**: GCC countries (Saudi Arabia, UAE, Qatar, Kuwait, Bahrain, Oman) and North/East Africa (Egypt, Libya, Sudan).
+  * **English (`EN`)**: B2B standard for Europe/Nordics (UK, Germany, Netherlands, Sweden, Norway, Denmark) and Anglophone Africa (Nigeria, Kenya, South Africa, Ghana, Uganda, etc.).
+* **Industry Normalization (`src/config/industry-slug.map.ts`)**:
+  Maps raw Apollo industry titles and sub-categories to 16 normalized slugs: `logistics`, `security`, `first_responders`, `aviation`, `mining_construction`, `energy_utilities`, `passenger_transport`, `maritime`, `manufacturing`, `hospitality`, `healthcare`, `facilities`, `agriculture`, `government_defence`, `ngo_field`, and `general`.
+* **Campaign Routing Table (`src/config/campaign-routing.config.ts`)**:
+  Combines `${IndustrySlug}_${LanguageCode}` (e.g. `logistics_FR`, `security_AR`, `aviation_EN`) to resolve the exact SmartLead campaign ID.
+  * **Fallback Resolution**: Exact Match (`industry_LANG`) &rarr; Language Generic (`general_LANG`) &rarr; Global Fallback (`general_EN`).
+  * **Placeholder IDs**: Initialized with placeholder `0` IDs. When campaigns are created in the SmartLead dashboard, operators simply input the campaign IDs directly into `CAMPAIGN_ROUTING_TABLE`.
+* **Dynamic Multi-Lingual AI Replies**:
+  The Claude LLM adapter dynamically matches the contact's resolved language code (`FR`, `AR`, `EN`), applying language-specific prompt directives so French leads receive fluent French holding responses, Arabic leads receive professional Arabic replies, and European/African English markets receive concise English responses.
+
 ---
 
 ## 3. Operational REST API
@@ -134,7 +149,7 @@ A clean, enterprise-grade **Modern Light** interface accessible at `http://local
 # Install dependencies
 npm install
 
-# Run all 10 test suites (71 tests)
+# Run all 11 test suites (88 tests)
 npm test
 
 # Build TypeScript to /dist
@@ -152,7 +167,16 @@ Open [http://localhost:3000/console](http://localhost:3000/console) in your brow
 
 ## 6. Changelog
 
-### 2026-10-26
+### 2026-10-29
+
+#### Multi-Region & Industry SmartLead Routing with Multi-Lingual AI Replies
+- **Country-to-Language Resolution (`src/config/country-language.map.ts`)**: Automatic mapping of leads to French (`FR`), Arabic (`AR`), and English (`EN`). Francophone West/North Africa & France route to French, GCC to Arabic, and Europe/Nordics & Anglophone Africa to English.
+- **Industry Classification Normalization (`src/config/industry-slug.map.ts`)**: Normalized 16 industry slugs covering all core verticals (Logistics, Security, First Responders, Aviation, Mining & Heavy Industry, Energy & Utilities, Passenger Transport, Maritime, Healthcare, Hospitality, Facilities, Agriculture, Government/Defence, NGO/Field, and General).
+- **Dynamic Campaign Routing Table (`src/config/campaign-routing.config.ts`)**: SmartLead campaign routing based on `${IndustrySlug}_${LanguageCode}` with fallback hierarchy (`exact` &rarr; `general_LANG` &rarr; `general_EN`). Initialized with placeholder `0` IDs for easy configuration.
+- **SmartLead Integration Adapter (`src/integrations/smartlead/adapter.ts`)**: Enrolls leads into target SmartLead campaigns with both mock (`MockSmartLeadAdapter`) and production (`SmartLeadApiAdapter`) implementations.
+- **Routing Unit Test Suite (`tests/routing.test.ts`)**: Added 14 unit tests validating language resolution, slug matching, fallback resolution, and SmartLead enrollment.
+
+### 2026-10-28
 
 #### `42d7f6b` — UI Overhaul: Enterprise Modern Light Console (`src/ui/console.ts`)
 The Operations Console was completely redesigned with an **Enterprise Modern Light** aesthetic (Linear / Stripe style):
