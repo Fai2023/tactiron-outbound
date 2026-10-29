@@ -2,15 +2,14 @@
  * Lead Enrichment & Verification Orchestrator
  * Implements Stage 2:
  * 1. Identifies missing fields
- * 2. Cascades through Apollo, Clay, and Email Verifier
+ * 2. Cascades through Apollo (Organization & Person APIs) and Email Verifier
  * 3. Non-destructively merges verified attributes
  * 4. Suppresses invalid emails immediately
  * 5. Gates progression to qualification
  */
 
 import { Company, Contact, EmailVerificationStatus } from '../../core/types/index.js';
-import { IApolloAdapter } from '../../integrations/apollo/adapter.js';
-import { IClayAdapter, ClayEnrichmentResult } from '../../integrations/clay/adapter.js';
+import { IApolloAdapter, ApolloRawPerson } from '../../integrations/apollo/adapter.js';
 import { IEmailVerificationAdapter } from '../../integrations/email-verify/adapter.js';
 
 export interface EnrichmentMissingFields {
@@ -63,16 +62,13 @@ const PTT_TARGET_ROLES = [
 
 export class EnrichmentService {
   private apolloAdapter: IApolloAdapter;
-  private clayAdapter: IClayAdapter;
   private emailVerifier: IEmailVerificationAdapter;
 
   constructor(
     apolloAdapter: IApolloAdapter,
-    clayAdapter: IClayAdapter,
     emailVerifier: IEmailVerificationAdapter
   ) {
     this.apolloAdapter = apolloAdapter;
-    this.clayAdapter = clayAdapter;
     this.emailVerifier = emailVerifier;
   }
 
@@ -90,7 +86,7 @@ export class EnrichmentService {
   }
 
   /**
-   * Executes the enrichment waterfall
+   * Executes the enrichment waterfall using Apollo and Email Verifier
    */
   public async enrich(company: Company, contact: Contact): Promise<EnrichmentExecutionResult> {
     const missing = this.identifyMissingFields(company, contact);
@@ -130,7 +126,7 @@ export class EnrichmentService {
       }
     }
 
-    // 2. Company Enrichment via Apollo (Team Size & Industry)
+    // 2. Company Enrichment via Apollo Organization API (Team Size & Industry)
     if (missing.companyTeamSize || missing.companyIndustry) {
       try {
         const orgData = await this.apolloAdapter.enrichOrganization(company.domain);
@@ -157,21 +153,39 @@ export class EnrichmentService {
       company.segmentFit = PTT_TARGET_INDUSTRIES.some(ind => lowerInd.includes(ind));
     }
 
-    // 3. Contact Role / Phone Enrichment via Clay
+    // 3. Contact Role / Phone Enrichment via Apollo Person API
     if (missing.contactJobTitle || missing.contactPhone) {
       try {
-        const clayTrigger = await this.clayAdapter.triggerEnrichment({
-          leadId: contact.id,
-          companyName: company.name,
-          domain: company.domain,
-          contactEmail: contact.email,
+        const personData = await this.apolloAdapter.enrichPerson({
+          email: contact.email,
           firstName: contact.firstName,
           lastName: contact.lastName,
-          country: contact.country
+          domain: company.domain,
+          organizationName: company.name
         });
-        operationsPerformed.push(`Triggered Clay table enrichment: executionId=${clayTrigger.executionId}`);
+
+        if (personData) {
+          if (missing.contactJobTitle && personData.title) {
+            contact.jobTitle = personData.title;
+            operationsPerformed.push(`Contact job title enriched via Apollo: ${contact.jobTitle}`);
+          }
+          if (missing.contactPhone && personData.sanitized_phone) {
+            contact.phone = personData.sanitized_phone;
+            operationsPerformed.push(`Contact phone enriched via Apollo: ${contact.phone}`);
+          }
+          if (missing.companyTeamSize && !company.teamSize && personData.organization?.estimated_num_employees) {
+            company.teamSize = personData.organization.estimated_num_employees;
+            operationsPerformed.push(`Company team size enriched via Apollo: ${company.teamSize} employees`);
+          }
+          if (missing.companyIndustry && !company.industry && personData.organization?.industry) {
+            company.industry = personData.organization.industry;
+            operationsPerformed.push(`Company industry enriched via Apollo: ${company.industry}`);
+          }
+          company.provenance.enrichedAt = now.toISOString();
+          company.provenance.enrichmentSource = 'Apollo API';
+        }
       } catch (err) {
-        operationsPerformed.push(`Clay trigger error: ${err instanceof Error ? err.message : String(err)}`);
+        operationsPerformed.push(`Apollo person enrichment error: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -206,28 +220,32 @@ export class EnrichmentService {
   }
 
   /**
-   * Handles asynchronous Clay callback webhook
+   * Applies Apollo person update data directly to company and contact
    */
-  public applyClayCallback(company: Company, contact: Contact, callbackData: ClayEnrichmentResult): void {
-    if (callbackData.employeeCount && !company.teamSize) {
-      company.teamSize = callbackData.employeeCount;
+  public applyApolloPersonUpdate(
+    company: Company,
+    contact: Contact,
+    updateData: { title?: string; phone?: string; employeeCount?: number; industry?: string }
+  ): void {
+    if (updateData.employeeCount && !company.teamSize) {
+      company.teamSize = updateData.employeeCount;
     }
-    if (callbackData.industry && !company.industry) {
-      company.industry = callbackData.industry;
+    if (updateData.industry && !company.industry) {
+      company.industry = updateData.industry;
       const lowerInd = company.industry.toLowerCase();
       company.segmentFit = PTT_TARGET_INDUSTRIES.some(ind => lowerInd.includes(ind));
     }
-    if (callbackData.jobTitle && !contact.jobTitle) {
-      contact.jobTitle = callbackData.jobTitle;
+    if (updateData.title && !contact.jobTitle) {
+      contact.jobTitle = updateData.title;
       const lowerTitle = contact.jobTitle.toLowerCase();
       contact.roleIsTarget = PTT_TARGET_ROLES.some(role => lowerTitle.includes(role));
     }
-    if (callbackData.phone && !contact.phone) {
-      contact.phone = callbackData.phone;
+    if (updateData.phone && !contact.phone) {
+      contact.phone = updateData.phone;
     }
 
     company.provenance.enrichedAt = new Date().toISOString();
-    company.provenance.enrichmentSource = 'Clay Webhook';
+    company.provenance.enrichmentSource = 'Apollo API';
     company.updatedAt = new Date();
     contact.updatedAt = new Date();
   }

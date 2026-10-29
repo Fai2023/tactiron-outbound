@@ -1,15 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { EnrichmentService } from '../src/modules/enrichment/service.js';
 import { MockApolloAdapter } from '../src/integrations/apollo/adapter.js';
-import { MockClayAdapter } from '../src/integrations/clay/adapter.js';
 import { MockEmailVerificationAdapter } from '../src/integrations/email-verify/adapter.js';
 import { Company, Contact } from '../src/core/types/index.js';
 
 describe('EnrichmentService - Waterfall & Gatekeeper Rules', () => {
   const apollo = new MockApolloAdapter();
-  const clay = new MockClayAdapter();
   const emailVerifier = new MockEmailVerificationAdapter();
-  const service = new EnrichmentService(apollo, clay, emailVerifier);
+  const service = new EnrichmentService(apollo, emailVerifier);
 
   const createMockCompany = (overrides?: Partial<Company>): Company => ({
     id: 'comp_test_1',
@@ -63,6 +61,23 @@ describe('EnrichmentService - Waterfall & Gatekeeper Rules', () => {
     expect(result.contact.roleIsTarget).toBe(true); // 'Operations Director' matches PTT target roles
   });
 
+  it('enriches missing contact job title and phone directly via Apollo person match', async () => {
+    const company = createMockCompany({ teamSize: 48, industry: 'Logistics and Transportation' });
+    const contact = createMockContact({
+      email: 'rashid@emiratesdispatch.ae',
+      jobTitle: undefined,
+      phone: undefined,
+      verificationStatus: 'VALID'
+    });
+
+    const result = await service.enrich(company, contact);
+
+    expect(result.contact.jobTitle).toBe('Operations & Fleet Director');
+    expect(result.contact.phone).toBe('+971501234567');
+    expect(result.contact.roleIsTarget).toBe(true);
+    expect(result.company.provenance.enrichmentSource).toBe('Apollo API');
+  });
+
   it('preserves existing verified data without overwriting during enrichment', async () => {
     const company = createMockCompany({ teamSize: 95, industry: 'Custom Freight' });
     const contact = createMockContact({ jobTitle: 'Fleet Specialist', verificationStatus: 'VALID' });
@@ -86,15 +101,14 @@ describe('EnrichmentService - Waterfall & Gatekeeper Rules', () => {
     expect(result.operationsPerformed.some(op => op.includes('marked SUPPRESSED'))).toBe(true);
   });
 
-  it('applies asynchronous Clay callback updates correctly and updates provenance', () => {
+  it('applies Apollo person updates correctly and updates provenance', () => {
     const company = createMockCompany({ teamSize: undefined, industry: undefined });
     const contact = createMockContact({ jobTitle: undefined, phone: undefined });
 
-    service.applyClayCallback(company, contact, {
-      leadId: contact.id,
+    service.applyApolloPersonUpdate(company, contact, {
       employeeCount: 65,
       industry: 'Ground Transport & Dispatch',
-      jobTitle: 'Dispatch Operations Manager',
+      title: 'Dispatch Operations Manager',
       phone: '+971509999999'
     });
 
@@ -104,6 +118,6 @@ describe('EnrichmentService - Waterfall & Gatekeeper Rules', () => {
     expect(contact.jobTitle).toBe('Dispatch Operations Manager');
     expect(contact.roleIsTarget).toBe(true);
     expect(contact.phone).toBe('+971509999999');
-    expect(company.provenance.enrichmentSource).toBe('Clay Webhook');
+    expect(company.provenance.enrichmentSource).toBe('Apollo API');
   });
 });

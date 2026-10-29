@@ -18,7 +18,6 @@ const envSchema = z.object({
   // Optional integration credentials (validated if provided, clearly flagged if absent)
   SMARTLEAD_API_KEY: z.string().optional(),
   APOLLO_API_KEY: z.string().optional(),
-  CLAY_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   
   // Odoo CRM configuration

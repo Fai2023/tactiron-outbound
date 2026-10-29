@@ -52,9 +52,18 @@ export interface ApolloSearchResponse {
   };
 }
 
+export interface ApolloPersonMatchParams {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  domain?: string;
+  organizationName?: string;
+}
+
 export interface IApolloAdapter {
   searchPeople(params: ApolloSearchParams): Promise<ApolloSearchResponse>;
   enrichOrganization(domain: string): Promise<ApolloRawPerson['organization'] | null>;
+  enrichPerson(params: ApolloPersonMatchParams): Promise<ApolloRawPerson | null>;
 }
 
 /**
@@ -168,6 +177,18 @@ export class MockApolloAdapter implements IApolloAdapter {
     const match = this.mockPeople.find(p => p.organization?.primary_domain?.toLowerCase() === domain.toLowerCase());
     return match?.organization || null;
   }
+
+  public async enrichPerson(params: ApolloPersonMatchParams): Promise<ApolloRawPerson | null> {
+    if (params.email) {
+      const match = this.mockPeople.find(p => p.email?.toLowerCase() === params.email?.toLowerCase());
+      if (match) return match;
+    }
+    if (params.domain) {
+      const match = this.mockPeople.find(p => p.organization?.primary_domain?.toLowerCase() === params.domain?.toLowerCase());
+      if (match) return match;
+    }
+    return null;
+  }
 }
 
 /**
@@ -243,5 +264,35 @@ export class ApolloApiAdapter implements IApolloAdapter {
 
     const data = await response.json() as { organization?: ApolloRawPerson['organization'] };
     return data.organization || null;
+  }
+
+  public async enrichPerson(params: ApolloPersonMatchParams): Promise<ApolloRawPerson | null> {
+    if (!this.apiKey) {
+      throw new Error('APOLLO_API_KEY is not configured.');
+    }
+
+    const payload: Record<string, unknown> = {
+      api_key: this.apiKey
+    };
+    if (params.email) payload.email = params.email;
+    if (params.firstName) payload.first_name = params.firstName;
+    if (params.lastName) payload.last_name = params.lastName;
+    if (params.domain) payload.domain = params.domain;
+    if (params.organizationName) payload.organization_name = params.organizationName;
+
+    const response = await fetch(`${this.baseUrl}/people/match`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      const err = await response.text();
+      throw new Error(`Apollo People Match API Error (${response.status}): ${err}`);
+    }
+
+    const data = await response.json() as { person?: ApolloRawPerson };
+    return data.person || null;
   }
 }
